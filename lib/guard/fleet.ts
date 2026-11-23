@@ -2,9 +2,11 @@ import { rpc } from "@stellar/stellar-sdk";
 import type { Contact } from "./addressBook.ts";
 import * as guardOps from "./guardOps.ts";
 import type { GuardSnapshot } from "./guardOps.ts";
-import { NETWORK } from "./network.ts";
+import { NETWORK, DEFAULT_FLEET_PROBE_CONCURRENCY } from "./network.ts";
 
 export type DerivedStatus = "Active" | "Frozen" | "Expired" | "Unknown";
+
+export { DEFAULT_FLEET_PROBE_CONCURRENCY };
 
 export interface FleetRow {
   contact: Contact;
@@ -17,35 +19,105 @@ export interface FleetRow {
   retry?: () => Promise<FleetRow>;
 }
 
+export type ReadSnapshotFn = typeof guardOps.readGuardSnapshot;
+
+export interface PollFleetOptions {
+  /** Maximum concurrent probe requests in flight. Defaults to DEFAULT_FLEET_PROBE_CONCURRENCY (5). */
+  concurrency?: number;
+  /** Optional cancellation signal to abort ongoing and queued probes on context change. */
+  signal?: AbortSignal;
+  /** Custom read snapshot function, defaults to guardOps.readGuardSnapshot. */
+  readSnapshot?: ReadSnapshotFn;
+}
+
 export async function pollFleet(
   server: rpc.Server,
   contacts: Contact[],
-  _readSnapshot = guardOps.readGuardSnapshot,
+  optionsOrReadSnapshot?: PollFleetOptions | ReadSnapshotFn,
+  legacyOptions?: PollFleetOptions,
 ): Promise<FleetRow[]> {
-  const promises = contacts.map(async (contact) => {
+  const isFn = typeof optionsOrReadSnapshot === "function";
+  const _readSnapshot: ReadSnapshotFn = isFn
+    ? optionsOrReadSnapshot
+    : (optionsOrReadSnapshot?.readSnapshot ?? guardOps.readGuardSnapshot);
+  const opts: PollFleetOptions = isFn ? (legacyOptions ?? {}) : (optionsOrReadSnapshot ?? {});
+
+  const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_FLEET_PROBE_CONCURRENCY);
+  const signal = opts.signal;
+
+  const rows: FleetRow[] = new Array(contacts.length);
+  let nextIndex = 0;
+
+  async function probeContact(contact: Contact, index: number): Promise<void> {
+    if (signal?.aborted) {
+      rows[index] = {
+        contact,
+        snapshot: null,
+        error: "Probe cancelled on context change",
+        derivedStatus: "Unknown",
+        spend24h: 0n,
+        dmsCountdownSecs: null,
+        network: NETWORK.name,
+        retry: async (): Promise<FleetRow> => {
+          const results = await pollFleet(server, [contact], _readSnapshot);
+          return results[0]!;
+        },
+      };
+      return;
+    }
+
     try {
       const snapshot = await _readSnapshot(server, contact.address);
+      if (signal?.aborted) {
+        rows[index] = {
+          contact,
+          snapshot: null,
+          error: "Probe cancelled on context change",
+          derivedStatus: "Unknown",
+          spend24h: 0n,
+          dmsCountdownSecs: null,
+          network: NETWORK.name,
+        };
+        return;
+      }
+
       let derivedStatus: DerivedStatus = "Unknown";
       let dmsCountdownSecs: bigint | null = null;
       let spend24h = 0n;
 
       if (snapshot.status.ok) {
-        if (snapshot.status.value.admin_frozen) {
-          derivedStatus = "Frozen";
-        } else if (snapshot.status.value.heartbeat_expired) {
-          derivedStatus = "Expired";
-        } else {
-          derivedStatus = "Active";
-        }
-
-        if (snapshot.policy.ok && snapshot.policy.value) {
-          const grace = snapshot.policy.value.dms_grace_secs;
-          const lastHb = snapshot.status.value.last_heartbeat;
-          const now = snapshot.status.value.now;
-          if (grace > 0n && lastHb > 0n) {
-            const remaining = lastHb + grace - now;
-            dmsCountdownSecs = remaining > 0n ? remaining : 0n;
+        const s = snapshot.status.value;
+        if (
+          s &&
+          typeof s === "object" &&
+          typeof s.admin_frozen === "boolean" &&
+          typeof s.heartbeat_expired === "boolean"
+        ) {
+          if (s.admin_frozen) {
+            derivedStatus = "Frozen";
+          } else if (s.heartbeat_expired) {
+            derivedStatus = "Expired";
+          } else {
+            derivedStatus = "Active";
           }
+
+          if (snapshot.policy.ok && snapshot.policy.value) {
+            const grace = snapshot.policy.value.dms_grace_secs;
+            const lastHb = s.last_heartbeat;
+            const now = s.now;
+            if (
+              typeof grace === "bigint" &&
+              typeof lastHb === "bigint" &&
+              typeof now === "bigint"
+            ) {
+              if (grace > 0n && lastHb > 0n) {
+                const remaining = lastHb + grace - now;
+                dmsCountdownSecs = remaining > 0n ? remaining : 0n;
+              }
+            }
+          }
+        } else {
+          derivedStatus = "Unknown";
         }
       }
 
@@ -53,7 +125,7 @@ export async function pollFleet(
         spend24h = snapshot.window.value.total;
       }
 
-      return {
+      rows[index] = {
         contact,
         snapshot,
         derivedStatus,
@@ -66,11 +138,11 @@ export async function pollFleet(
         },
       };
     } catch (error) {
-      return {
+      rows[index] = {
         contact,
         snapshot: null,
         error: error instanceof Error ? error.message : String(error),
-        derivedStatus: "Unknown" as DerivedStatus,
+        derivedStatus: "Unknown",
         spend24h: 0n,
         dmsCountdownSecs: null,
         network: NETWORK.name,
@@ -80,9 +152,27 @@ export async function pollFleet(
         },
       };
     }
+  }
+
+  const workerCount = Math.min(concurrency, contacts.length);
+  if (workerCount === 0) return [];
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < contacts.length) {
+      if (signal?.aborted) {
+        while (nextIndex < contacts.length) {
+          const i = nextIndex++;
+          await probeContact(contacts[i]!, i);
+        }
+        break;
+      }
+      const i = nextIndex++;
+      await probeContact(contacts[i]!, i);
+    }
   });
 
-  return Promise.all(promises);
+  await Promise.all(workers);
+  return rows;
 }
 
 export function filterFleet(

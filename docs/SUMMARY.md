@@ -19,6 +19,7 @@
 - [Guides](guides/)
   - [Agent Integration](guides/agent-integration.md)
   - [Air-Gapped Multisig Signing](guides/air-gapped-multisig-signing.md)
+  - [Evaluating Third-Party Endpoints](guides/evaluating-rpc-endpoints.md)
 - [Architecture](architecture.md)
 - [Glossary](glossary.md)
 - [Testnet Verification](verification.md)

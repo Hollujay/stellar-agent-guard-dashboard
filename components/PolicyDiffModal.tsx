@@ -1,6 +1,9 @@
 "use client";
 
 import type { PolicyDiff, DiffEntry } from "../lib/guard/policyDiff.ts";
+import { PendingActionSummary } from "./PendingActionSummary.tsx";
+import { createPendingActionSnapshot } from "../lib/guard/walletConnector.ts";
+import { NETWORK } from "../lib/guard/network.ts";
 
 const STATUS: Record<DiffEntry["status"], { sign: string; color: string; label: string }> = {
   added: { sign: "+", color: "#1a7f37", label: "added" },
@@ -31,15 +34,19 @@ export function PolicyDiffModal({
   diff,
   onConfirm,
   onCancel,
+  signerAccount,
+  network,
 }: {
   diff: PolicyDiff;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel: (reason?: string) => void;
+  signerAccount?: string | null | undefined;
+  network?: string;
 }) {
   const changes = diff.entries.filter((entry) => entry.status !== "unchanged");
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
+    <div className="modal-backdrop" role="presentation" onClick={() => onCancel()}>
       <div
         className="modal"
         role="dialog"
@@ -48,6 +55,18 @@ export function PolicyDiffModal({
         onClick={(event) => event.stopPropagation()}
       >
         <h2 style={{ marginTop: 0 }}>Policy changes</h2>
+        {signerAccount && (
+          <PendingActionSummary
+            snapshot={createPendingActionSnapshot({
+              account: signerAccount,
+              network: network ?? NETWORK.name,
+              actionName: "Set Policy",
+            })}
+            currentAccount={signerAccount}
+            currentNetwork={network ?? NETWORK.name}
+            onCancel={(reason) => onCancel(reason)}
+          />
+        )}
         <p className="tiny muted">
           Review what will change before the wallet is prompted to sign. Signing installs the new
           policy and resets the rolling window.
@@ -107,7 +126,7 @@ export function PolicyDiffModal({
 
         <div className="row" style={{ marginTop: 14 }}>
           <button onClick={onConfirm}>Confirm and sign</button>
-          <button className="secondary" onClick={onCancel}>
+          <button className="secondary" onClick={() => onCancel()}>
             Cancel
           </button>
         </div>

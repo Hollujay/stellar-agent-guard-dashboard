@@ -37,6 +37,8 @@ import { usePwaActivity } from "../lib/guard/usePwaActivity.ts";
 import { CopyButton } from "./CopyButton.tsx";
 import { useDemoMode } from "../lib/guard/useDemoMode.ts";
 import { NETWORK } from "../lib/guard/network.ts";
+import { PendingActionSummary } from "./PendingActionSummary.tsx";
+import { createPendingActionSnapshot } from "../lib/guard/walletConnector.ts";
 import {
   acquireGuardWriteLock,
   subscribeGuardWriteLock,
@@ -647,6 +649,22 @@ export function PanicPanel({ ops }: { ops?: Partial<PanicPanelOps> }) {
             <strong id="freeze-confirm-title">
               Confirm the freeze — this stops the agent immediately
             </strong>
+            {wallet && (
+              <PendingActionSummary
+                snapshot={createPendingActionSnapshot({
+                  account: wallet.address,
+                  network: NETWORK.name,
+                  actionName: "Freeze Guard",
+                })}
+                currentAccount={wallet.address}
+                currentNetwork={NETWORK.name}
+                onCancel={(reason) => {
+                  setPhase("idle");
+                  setChallengeInput("");
+                  setError(reason);
+                }}
+              />
+            )}
             <p className="tiny">
               The agent will not be able to make any call that requires its authorization until the
               account is unfrozen. This will prompt your wallet to sign an <code>unfreeze</code>

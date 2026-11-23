@@ -1370,6 +1370,8 @@ export function PolicyForm() {
       {approval && approval.diff && pendingApproval && (
         <PolicyDiffModal
           diff={approval.diff}
+          signerAccount={wallet?.address}
+          network={NETWORK.name}
           onConfirm={() => void runInstall(false, pendingApproval)}
           onCancel={() => setPendingApproval(null)}
         />

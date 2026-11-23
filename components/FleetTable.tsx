@@ -7,6 +7,7 @@ import { POLLING, jitteredInterval } from "../lib/guard/polling.ts";
 import {
   pollFleet,
   defaultSortDirection,
+  DEFAULT_FLEET_PROBE_CONCURRENCY,
   type FleetRow,
   type DerivedStatus,
   type SortKey,
@@ -88,15 +89,21 @@ export function FleetTable() {
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
+
     const fetchFleet = async () => {
+      setLoading(true);
       const instances = loadInstances();
       const contacts = instances.map((i) => ({
         address: i.guard,
         label: i.label,
         addedAt: "",
       }));
-      const result = await pollFleet(server, contacts);
-      if (mounted) {
+      const result = await pollFleet(server, contacts, {
+        concurrency: DEFAULT_FLEET_PROBE_CONCURRENCY,
+        signal: controller.signal,
+      });
+      if (mounted && !controller.signal.aborted) {
         setRows(result);
         setLoading(false);
       }
@@ -106,6 +113,7 @@ export function FleetTable() {
     const interval = setInterval(fetchFleet, jitteredInterval(POLLING.fleetMs));
     return () => {
       mounted = false;
+      controller.abort();
       clearInterval(interval);
     };
   }, [server, refreshKey]);
@@ -238,11 +246,22 @@ export function FleetTable() {
 
   return (
     <div className="panel">
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ margin: 0 }}>Fleet Overview</h2>
-        <span className="tiny muted">
-          {rows.length} guard{rows.length !== 1 ? "s" : ""} in registry
-        </span>
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          <button
+            className="secondary"
+            data-testid="fleet-refresh-button"
+            style={{ fontSize: "12px", padding: "4px 8px" }}
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
+          >
+            {loading ? "Refreshing…" : "Refresh fleet"}
+          </button>
+          <span className="tiny muted">
+            {rows.length} guard{rows.length !== 1 ? "s" : ""} in registry
+          </span>
+        </div>
       </div>
 
       <div className="split" style={{ marginTop: 12 }}>

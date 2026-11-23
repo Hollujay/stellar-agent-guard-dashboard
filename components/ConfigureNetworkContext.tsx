@@ -9,6 +9,9 @@ export function rpcHostname(rpcUrl: string): string {
   }
 }
 
+export const EVALUATE_ENDPOINTS_GUIDE_PATH = "/docs/guides/evaluating-rpc-endpoints.md";
+export const EVALUATE_ENDPOINTS_LABEL = "Evaluating third-party endpoints";
+
 export function ConfigureNetworkContext({
   networkName = NETWORK.name,
   rpcUrl = NETWORK.rpcUrl,
@@ -24,6 +27,17 @@ export function ConfigureNetworkContext({
       <code className="configure-network-host" data-testid="configure-rpc-hostname" title={rpcUrl}>
         {rpcHostname(rpcUrl)}
       </code>
+      <a
+        href={EVALUATE_ENDPOINTS_GUIDE_PATH}
+        className="tiny rpc-checklist-link"
+        data-testid="rpc-checklist-link"
+        title="Safe checklist for evaluating third-party endpoints"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ marginLeft: 8 }}
+      >
+        {EVALUATE_ENDPOINTS_LABEL}
+      </a>
     </div>
   );
 }

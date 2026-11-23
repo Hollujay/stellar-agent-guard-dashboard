@@ -39,6 +39,8 @@ import {
   type RpcHealthResult,
 } from "../lib/rpc/timeouts.ts";
 
+export { PendingActionSummary } from "./PendingActionSummary.tsx";
+
 export function WalletBar() {
   const {
     wallet,

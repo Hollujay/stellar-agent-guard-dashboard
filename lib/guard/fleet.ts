@@ -360,10 +360,7 @@ export async function pollFleet(
   if (isFn) {
     _readSnapshot = optionsOrReadSnapshot;
     if (storageOrLegacyOptions) {
-      if (
-        "getItem" in storageOrLegacyOptions ||
-        "setItem" in storageOrLegacyOptions
-      ) {
+      if ("getItem" in storageOrLegacyOptions || "setItem" in storageOrLegacyOptions) {
         storage = storageOrLegacyOptions as StorageLike;
       } else if (
         "concurrency" in storageOrLegacyOptions ||
@@ -424,7 +421,10 @@ export async function pollFleet(
         displayName,
         policyAge: { derivable: false, ageSecs: null, display: "unavailable" },
         retry: async (): Promise<FleetRow> => {
-          const results = await pollFleet(server, [contact], { readSnapshot: _readSnapshot, storage });
+          const results = await pollFleet(server, [contact], {
+            readSnapshot: _readSnapshot,
+            storage,
+          });
           return results[0]!;
         },
       };
@@ -446,7 +446,10 @@ export async function pollFleet(
           displayName,
           policyAge: { derivable: false, ageSecs: null, display: "unavailable" },
           retry: async (): Promise<FleetRow> => {
-            const results = await pollFleet(server, [contact], { readSnapshot: _readSnapshot, storage });
+            const results = await pollFleet(server, [contact], {
+              readSnapshot: _readSnapshot,
+              storage,
+            });
             return results[0]!;
           },
         };

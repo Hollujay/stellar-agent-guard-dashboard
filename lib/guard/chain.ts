@@ -183,7 +183,9 @@ export async function readStatus(
     return readContract<GuardStatus>(server, guard, "status", [], source, (retval) => {
       const native = scValToNative(retval);
       if (!isValidGuardStatus(native)) {
-        throw new Error("malformed GuardStatus payload from RPC: missing required status fields");
+        throw new Error(
+          "malformed GuardStatus payload from RPC: missing required status fields (not in guard's shape)",
+        );
       }
       return native;
     });

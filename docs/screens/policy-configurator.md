@@ -21,3 +21,7 @@ Interactive no-code form for configuring smart account guardrails:
   [`app/globals.css`](../../app/globals.css) rather than a local palette; `npm test` measures each of them
   against the modal surface and fails below the WCAG 2.1 AA floor of 4.5:1. Warnings (a lower window cap,
   a shortened dead-man grace) reuse the same notice tier as the default-deny banner.
+- **Pre-Signature Authorization Summary**: The review dialog pairs the diff with the operation, guard
+  address, network and admin account the signature will cover, derived from the transaction about to be
+  simulated ([authorization-summary.md](authorization-summary.md)). An install with no summary to show
+  is never offered as a signing prompt.

@@ -26,6 +26,14 @@ import { computePolicyDiff, type PolicyDiff } from "../../lib/guard/policyDiff.t
 
 installDom();
 
+/** The summary a review dialog is opened with; the diff rows are what these tests read. */
+const TEST_AUTHORIZATION = {
+  operation: "set_policy",
+  guard: "CBBD7223BM5VCEOR2G26KDW6Y4G6ZUNS5U67GZ2BGB26KDW6Y4G6ZUNS",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  admin: "GBBD7223BM5VCEOR2G26KDW6Y4G6ZUNS5U67GZ2BGB26KDW6Y4G6ZUNS",
+};
+
 let react: typeof import("react");
 let createRoot: typeof import("react-dom/client").createRoot;
 let act: Act;
@@ -96,11 +104,13 @@ async function render(diff: PolicyDiff): Promise<{
   const element = react.createElement(
     PolicyDiffModal as unknown as (p: {
       diff: PolicyDiff;
+      authorization: typeof TEST_AUTHORIZATION;
       onConfirm: () => void;
       onCancel: () => void;
     }) => ReactElement,
     {
       diff,
+      authorization: TEST_AUTHORIZATION,
       onConfirm: () => {
         confirmations += 1;
       },
@@ -342,6 +352,7 @@ test("confirming still requires the operator, and cancelling never signs", async
     root.render(
       react.createElement(PolicyDiffModal, {
         diff: ADDED,
+        authorization: TEST_AUTHORIZATION,
         onConfirm: () => {
           confirmations += 1;
         },

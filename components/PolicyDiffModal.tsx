@@ -5,6 +5,8 @@ import type { PolicyDiff, DiffEntry } from "../lib/guard/policyDiff.ts";
 import { PendingActionSummary } from "./PendingActionSummary.tsx";
 import { createPendingActionSnapshot } from "../lib/guard/walletConnector.ts";
 import { NETWORK } from "../lib/guard/network.ts";
+import type { AuthorizationContext } from "../lib/guard/authorizationSummary.ts";
+import { AuthorizationSummaryBlock } from "./AuthorizationSummary.tsx";
 import { useGuard } from "./GuardProvider.tsx";
 import { short } from "./bits.tsx";
 
@@ -61,9 +63,16 @@ function renderValue(value: unknown): string {
  * caps are what the guard enforces. This renders the structured diff from
  * `lib/guard/policyDiff.ts` side by side and refuses to call `onConfirm` until
  * the operator has actually seen it.
+ *
+ * The diff says *what* changes; the authorization block beneath it says *who is
+ * signing what, and where* (issue #343) — the two halves of the same question,
+ * which is why they share this dialog rather than sitting in separate panels. An
+ * install with no summary to show has no confirmed signer, so the confirm button
+ * stays disabled instead of offering a prompt the operator cannot evaluate.
  */
 export function PolicyDiffModal({
   diff,
+  authorization,
   expectedAccount,
   currentAccount,
   onConfirm,
@@ -72,6 +81,7 @@ export function PolicyDiffModal({
   network,
 }: {
   diff: PolicyDiff;
+  authorization: AuthorizationContext | null;
   expectedAccount?: string | undefined;
   currentAccount?: string | undefined;
   onConfirm: () => void;
@@ -195,9 +205,18 @@ export function PolicyDiffModal({
           </>
         )}
 
+        <div style={{ marginTop: 14 }}>
+          <AuthorizationSummaryBlock authorization={authorization} purpose="this policy install" />
+        </div>
+
         <div className="row" style={{ marginTop: 14 }}>
           <button
-            disabled={changes.length === 0 || accountChanged}
+            disabled={authorization === null || changes.length === 0 || accountChanged}
+            title={
+              authorization === null
+                ? "This console cannot name the account and guard that would sign, so it will not ask your wallet to."
+                : undefined
+            }
             onClick={() => {
               if (accountChanged) return;
               onConfirm();

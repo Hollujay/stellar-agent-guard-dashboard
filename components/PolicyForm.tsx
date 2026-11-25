@@ -29,8 +29,10 @@ import {
 } from "../lib/guard/policyPreflight.ts";
 import { historyShortcut, useHistoryState } from "../lib/guard/useHistoryState.ts";
 import { usePwaActivity } from "../lib/guard/usePwaActivity.ts";
+import { useModalFocus } from "../lib/guard/useModalFocus.ts";
 import { computePolicyDiff, type PolicyDiff } from "../lib/guard/policyDiff.ts";
 import { PolicyDiffModal } from "./PolicyDiffModal.tsx";
+import { PolicyComparisonModal } from "./PolicyComparisonModal.tsx";
 import type { InvokeResult } from "../lib/guard/submit.ts";
 import { previewAuthorizationSummary } from "../lib/guard/submit.ts";
 import type { AuthorizationContext } from "../lib/guard/authorizationSummary.ts";
@@ -211,6 +213,7 @@ export function PolicyForm() {
   // change event on the select.
   const [pendingPreset, setPendingPreset] = useState<PolicyPreset | null>(null);
   const [pendingPolicyImport, setPendingPolicyImport] = useState<PolicyImportApproval | null>(null);
+  const [showProfileComparison, setShowProfileComparison] = useState(false);
   // ── Which guard everything on this form belongs to ──────────────────────
   // The active guard is shared application context: the operator, another tab or
   // a link can change it while a draft, an approval or a write is still live.
@@ -279,55 +282,16 @@ export function PolicyForm() {
 
   const confirmingPreset = pendingPreset !== null;
 
-  // Same focus discipline as the freeze dialog: move focus into the modal, keep
-  // Tab inside it, close on Escape, and return focus to the select afterwards.
-  useEffect(() => {
-    if (!confirmingPreset) return;
-    const dialog = presetDialog.current;
-    if (!dialog) return;
-
-    const focusables = () =>
-      Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-        ),
-      );
-
-    dialog.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setPendingPreset(null);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusables();
-      if (items.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      const active = document.activeElement as HTMLElement | null;
-      const inside = active !== null && dialog.contains(active);
-      if (event.shiftKey && (active === first || !inside)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !inside)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown, true);
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate late ref read, see PanicPanel
-      presetSelect.current?.focus();
-    };
-  }, [confirmingPreset]);
+  // Same focus discipline as the freeze dialog (shared hook): move focus into
+  // the modal, keep Tab inside it, close on Escape, and return focus to the
+  // select afterwards. The hook's dialog stack keeps this trap inert while a
+  // dialog above it (e.g. the secret-key alert) owns the keyboard.
+  useModalFocus({
+    open: confirmingPreset,
+    containerRef: presetDialog,
+    returnFocusRef: presetSelect,
+    onDismiss: () => setPendingPreset(null),
+  });
 
   function applyPreset(preset: PolicyPreset) {
     setDraft(draftFromPreset(preset));
@@ -840,6 +804,15 @@ export function PolicyForm() {
           </button>
           <button className="secondary" type="button" onClick={exportPolicyJson} disabled={busy}>
             Export Policy JSON
+          </button>
+          <button
+            className="secondary"
+            type="button"
+            onClick={() => setShowProfileComparison(true)}
+            disabled={busy}
+            title="Compare policy profiles side-by-side without applying"
+          >
+            Compare Profiles
           </button>
           <input
             ref={policyJsonInput}
@@ -1463,6 +1436,18 @@ export function PolicyForm() {
           network={NETWORK.name}
           onConfirm={() => void runInstall(false, pendingApproval)}
           onCancel={() => setPendingApproval(null)}
+        />
+      )}
+
+      {showProfileComparison && (
+        <PolicyComparisonModal
+          currentDraftConfig={validation.ok ? validation.config : null}
+          installedConfig={
+            snapshot?.policy.ok && snapshot.policy.value !== null ? snapshot.policy.value : null
+          }
+          activeGuard={guard}
+          activeNetwork={NETWORK.name}
+          onClose={() => setShowProfileComparison(false)}
         />
       )}
     </div>

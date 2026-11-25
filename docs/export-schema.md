@@ -133,6 +133,20 @@ Two differences from the audit log are intentional, and a parser must not assume
 them: this file writes the **empty string** where the audit log writes `null`, and
 it carries no header line and no `raw` XDR.
 
+## Practical ceiling
+
+The feed keeps the **250 most recent events** (newest first), so an export
+contains at most 250 data rows and always reflects what the operator can see.
+Export earlier if you need more history; the feed is a console, not an archive.
+How far back those rows can reach at all, and what a gap among them means, is a
+property of the RPC and the poll cadence rather than of this file format, so it
+is documented in
+[Historical Event Availability](./concepts/historical-event-availability.md).
+
+## Telling a refused transaction from a settled one
+
+A refused simulation is transient and client-local; it never committed to the ledger, so it has no transaction hash, no ledger sequence, and no `ledger_closed_at`. In all export formats (CSV, JSON, NDJSON, and the audit log), these rows are explicitly distinguished by `source: "diagnostic"` (whereas settled on-chain events carry `source: "ledger"`).
+
 ## Cell conventions
 
 - **Every cell is a string.** Ledger sequences and the schema version are

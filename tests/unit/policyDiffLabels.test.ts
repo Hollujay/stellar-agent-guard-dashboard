@@ -204,7 +204,7 @@ test("the status word rides with the field: the cell is a row header", async () 
     const columns = Array.from(
       rendered.dialog.querySelectorAll<HTMLTableCellElement>('thead th[scope="col"]'),
     ).map((cell) => cell.textContent?.trim());
-    assert.deepEqual(columns, ["Field", "Current", "New"]);
+    assert.deepEqual(columns, ["Field", "Before (installed)", "After (this draft)"]);
     assert.ok(
       rendered.dialog.querySelector("caption"),
       "the table needs a caption so the header cells have context",

@@ -114,6 +114,7 @@ export interface AuditEventRecord {
 }
 
 /**
+/**
  * One event time in the export's canonical form, or `null` when it is absent.
  *
  * `canonicalUtc` renders absence as the empty string because the CSV writes an
@@ -124,6 +125,59 @@ function nullableUtc(value: string | null | undefined): string | null {
   const canonical = canonicalUtc(value);
   return canonical === "" ? null : canonical;
 }
+
+/**
+ * The audit record's fields, in the order `toAuditRecord` writes them.
+ *
+ * Named here because the export preview has to state them, and a preview that
+ * retyped the list would drift the moment a field was added. Both lists are
+ * checked against the record types at compile time by
+ * `AUDIT_FIELDS_ARE_COMPLETE`, so adding a field to `AuditEventRecord` without
+ * naming it here fails the type-check gate rather than quietly exporting an
+ * undocumented column.
+ */
+export const AUDIT_EVENT_FIELDS = [
+  "record",
+  "kind",
+  "topic",
+  "verdict",
+  "reason",
+  "source",
+  "contractId",
+  "ledger",
+  "timestamp",
+  "timestampSource",
+  "ledgerClosedAt",
+  "observedAt",
+  "transactionHash",
+  "data",
+  "raw",
+] as const satisfies readonly (keyof AuditEventRecord)[];
+
+export const AUDIT_HEADER_FIELDS = [
+  "record",
+  "schema",
+  "exportedAt",
+  "guard",
+  "network",
+  "scope",
+  "filter",
+  "eventCount",
+  "bufferedCount",
+  "latestLedger",
+  "demo",
+] as const satisfies readonly (keyof AuditHeader)[];
+
+/** Non-`never` only while both lists name exactly the fields they describe. */
+type UnnamedAuditFields =
+  | Exclude<(typeof AUDIT_EVENT_FIELDS)[number], keyof AuditEventRecord>
+  | Exclude<keyof AuditEventRecord, (typeof AUDIT_EVENT_FIELDS)[number]>
+  | Exclude<(typeof AUDIT_HEADER_FIELDS)[number], keyof AuditHeader>
+  | Exclude<keyof AuditHeader, (typeof AUDIT_HEADER_FIELDS)[number]>;
+
+export const AUDIT_FIELDS_ARE_COMPLETE: [UnnamedAuditFields] extends [never]
+  ? true
+  : { error: "the audit field lists no longer match the audit records" } = true;
 
 export function toAuditRecord(event: TelemetryEvent): AuditEventRecord {
   const observedAt = nullableUtc(event.observedAt);
